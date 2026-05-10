@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Clean Window Overlay</title>
+<style>
+  /* ---- Brand palette (tweak here) ---- */
+  :root {
+    --charcoal: #2F2A2D;
+    --sage:     #7F9D6F;
+    --white:    #FFFFFF;
+
+    --wipe-duration: 1.8s;
+    --wipe-ease: cubic-bezier(0.77, 0, 0.175, 1);
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    width: 100%;
+    height: 100%;
+    background: #fbf9ee; /* matches cream backdrop of the product image */
+  }
+
+  /* Full-viewport stage for standalone landing-page use. */
+  .stage {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+  }
+
+  /* ---- Blurred product image behind the foggy overlay ----
+     Put the image in the same folder as this HTML (named greendow.jpg). */
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+    background-image: url("greendow.jpg");
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: contain;
+    background-color: #fbf9ee;
+    transition: opacity 0.35s ease;
+  }
+
+  .backdrop.hidden {
+    opacity: 0;
+  }
+
+  /* ---- Dirty window overlay ---- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10;
+    overflow: hidden;
+    background: rgba(225, 230, 228, 0.85);
+    backdrop-filter: blur(14px) saturate(0.9);
+    -webkit-backdrop-filter: blur(14px) saturate(0.9);
+    transition: opacity 0.35s ease;
+  }
+
+  /* The smudge layer is a stack of radial gradients that look like
+     fingerprints, streaks and water spots. Drift slowly to feel organic. */
+  .smudges {
+    position: absolute;
+    inset: -10%;
+    background-color: rgba(245, 245, 240, 0.55);
+    background-image:
+      /* Greasy fingerprints */
+      radial-gradient(ellipse 180px 120px at 18% 22%, rgba(120, 130, 125, 0.35), transparent 60%),
+      radial-gradient(ellipse 140px 90px  at 78% 30%, rgba(110, 120, 115, 0.30), transparent 65%),
+      radial-gradient(ellipse 220px 140px at 65% 75%, rgba(130, 140, 135, 0.28), transparent 60%),
+      radial-gradient(ellipse 110px 80px  at 30% 80%, rgba(100, 110, 105, 0.32), transparent 65%),
+      /* Water spots */
+      radial-gradient(circle 60px at 45% 40%, rgba(200, 210, 205, 0.55), transparent 70%),
+      radial-gradient(circle 35px at 85% 60%, rgba(190, 200, 195, 0.50), transparent 70%),
+      radial-gradient(circle 50px at 12% 55%, rgba(210, 220, 215, 0.50), transparent 70%),
+      radial-gradient(circle 25px at 55% 88%, rgba(200, 210, 205, 0.55), transparent 70%),
+      /* Hazy fog wash */
+      radial-gradient(ellipse 600px 400px at 50% 50%, rgba(245, 248, 246, 0.45), transparent 70%);
+    filter: blur(2px);
+    animation: drift 22s ease-in-out infinite alternate;
+  }
+
+  /* A second streak layer adds vertical drip-like marks */
+  .streaks {
+    position: absolute;
+    inset: -10%;
+    background-image:
+      linear-gradient(100deg, transparent 0%, rgba(255,255,255,0.18) 20%, transparent 40%),
+      linear-gradient(95deg,  transparent 30%, rgba(180,190,185,0.22) 50%, transparent 70%),
+      linear-gradient(105deg, transparent 60%, rgba(255,255,255,0.15) 80%, transparent 95%);
+    mix-blend-mode: screen;
+    animation: drift 30s ease-in-out infinite alternate-reverse;
+  }
+
+  @keyframes drift {
+    0%   { transform: translate(0, 0) scale(1); }
+    50%  { transform: translate(-1.5%, 1%) scale(1.02); }
+    100% { transform: translate(1.5%, -1%) scale(1.04); }
+  }
+
+  /* ---- Button ---- */
+  .clean-btn {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 20;
+
+    padding: 16px 32px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 17px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--white);
+    background: var(--sage);
+    border: 2px solid transparent;
+    border-radius: 14px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(47, 42, 45, 0.28);
+    transition:
+      transform 0.25s ease,
+      background-color 0.25s ease,
+      color 0.25s ease,
+      box-shadow 0.25s ease,
+      opacity 0.45s ease;
+    user-select: none;
+  }
+
+  .clean-btn:hover,
+  .clean-btn:focus-visible {
+    background: var(--charcoal);
+    color: var(--white);
+    transform: translate(-50%, -50%) scale(1.05);
+    box-shadow: 0 12px 28px rgba(47, 42, 45, 0.45);
+    outline: none;
+  }
+
+  .clean-btn:active {
+    transform: translate(-50%, -50%) scale(0.98);
+  }
+
+  .clean-btn.fade-out {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* ---- Wipe animation ----
+     A radial clip-path expands from the button's origin, "cleaning" the
+     overlay outward. We invert the clip (cut a growing hole) so the
+     dirty layer disappears as the circle grows. */
+  .overlay.wiping .smudges,
+  .overlay.wiping .streaks,
+  .overlay.wiping {
+    transition: clip-path var(--wipe-duration) var(--wipe-ease),
+                backdrop-filter var(--wipe-duration) var(--wipe-ease),
+                -webkit-backdrop-filter var(--wipe-duration) var(--wipe-ease);
+  }
+
+  .overlay.wiping {
+    clip-path: circle(0% at 50% 50%);
+    backdrop-filter: blur(0px) saturate(1);
+    -webkit-backdrop-filter: blur(0px) saturate(1);
+  }
+
+  .overlay.cleaned {
+    opacity: 0;
+    pointer-events: none;
+    display: none; /* removed from layout once finished */
+  }
+
+  /* Responsive tweaks */
+  @media (max-width: 600px) {
+    .clean-btn {
+      padding: 14px 26px;
+      font-size: 16px;
+    }
+    .stage { min-height: 600px; }
+  }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div class="backdrop" id="backdrop" aria-hidden="true"></div>
+    <div class="overlay" id="overlay" aria-hidden="true">
+      <div class="smudges"></div>
+      <div class="streaks"></div>
+    </div>
+    <button class="clean-btn" id="cleanBtn" type="button" aria-label="clean window">
+      clean window
+    </button>
+  </div>
+
+  <script>
+    (function () {
+      // ====================================================================
+      // PASTE YOUR GOOGLE SITE URL HERE  (the draft/preview link works too)
+      // ====================================================================
+      var REDIRECT_URL = "https://sites.google.com/vancouvercollege.ca/greendow/home";
+
+      var overlay = document.getElementById('overlay');
+      var backdrop = document.getElementById('backdrop');
+      var btn = document.getElementById('cleanBtn');
+      var cleaned = false; // session-only state, no storage
+
+      function clean() {
+        if (cleaned) return;
+        cleaned = true;
+
+        // Fade the button + the blurred product image out as the wipe begins
+        // (so the "cleaned" view never reveals the image — we go straight to redirect)
+        btn.classList.add('fade-out');
+        backdrop.classList.add('hidden');
+
+        // Trigger the wipe (clip-path collapse to 0)
+        // Force a reflow so the transition picks up reliably
+        void overlay.offsetWidth;
+        overlay.classList.add('wiping');
+
+        // After the wipe finishes, redirect to the Google Site
+        var totalMs = 1800 + 200; // matches --wipe-duration plus a small buffer
+        setTimeout(function () {
+          overlay.classList.add('cleaned');
+          if (btn && btn.parentNode) {
+            btn.parentNode.removeChild(btn);
+          }
+          window.location.href = REDIRECT_URL;
+        }, totalMs);
+      }
+
+      btn.addEventListener('click', clean);
+      btn.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          clean();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
